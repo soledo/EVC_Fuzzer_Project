@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test and Coverage
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+fuzzing_report_*.json
+fuzzing_state_*.json
+environment_report.json
+*.pcap
+*.cap
+core.*
+test_report.txt
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*~
+
+# Java
+*.class
+*.jar
+!V2Gdecoder-jar-with-dependencies.jar
+!V2GdecoderMOD.jar
+
+# Output files
+output/
+results/

@@ -1,0 +1,18 @@
+# EVC Fuzzing Project - Python Dependencies
+# Tested with Python 3.8+ on Ubuntu 20.04/22.04, Debian 11/12, Raspberry Pi OS
+
+# Core networking and packet manipulation
+scapy>=2.4.5
+
+# Progress bars for fuzzing and scanning operations
+tqdm>=4.65.0
+
+# I2C communication for hardware control (Raspberry Pi)
+# Note: On non-RPi systems, this may need to be installed separately or skipped
+smbus>=1.1
+
+# HTTP requests for EXI decoder communication
+requests>=2.28.0
+
+# Optional: For better terminal output
+colorama>=0.4.6
