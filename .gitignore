@@ -81,3 +81,8 @@ test_report.txt
 # Output files
 output/
 results/
+
+# Claude Code files
+CLAUDE.md
+.claude
+.claude/

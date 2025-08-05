@@ -45,7 +45,7 @@ sudo python3 EVSE.py --interface veth-evse
 
 #### 터미널 2: 통합 퍼저 (공격자)
 ```bash
-cd /home/donghyuk/EVC_Fuzzing_Project/EVC_Fuzzer
+cd ../EVC_Fuzzer
 
 # 사용 가능한 상태 목록 확인
 python3 unified_fuzzer.py --list-states
@@ -176,20 +176,29 @@ sudo python3 unified_fuzzer.py --state state2 --protocol ISO-2 --iterations-per-
 }
 ```
 
-## 레거시 퍼저에서 마이그레이션
+## 통합 퍼저 vs 레거시 퍼저
 
-통합 퍼저는 다음의 더 이상 사용되지 않는 파일들을 대체합니다:
-- `state1_fuzz.py` → `unified_fuzzer.py --state state1`
-- `state2_fuzz.py` → `unified_fuzzer.py --state state2`
-- ... (state3-state10도 동일)
+이 프로젝트는 두 가지 퍼징 방식을 제공합니다:
 
-### 마이그레이션 예제
+### 통합 퍼저 (권장)
+- **`unified_fuzzer.py`** - 모든 상태를 하나의 도구로 처리
+- 매개변수를 통한 상태 선택 (`--state state1`)
+- 일관된 인터페이스와 보고 시스템
+- 중앙화된 설정 관리
+
+### 레거시 개별 퍼저 (호환성)
+- **`state1_fuzz.py` ~ `state10_fuzz.py`** - 각 상태별 독립 도구
+- 기존 워크플로우와의 호환성 유지
+- 특정 상태만 집중적으로 테스트할 때 유용
+- 개별 맞춤형 설정 가능
+
+### 사용 예제 비교
 ```bash
-# 기존 방식 (더 이상 사용하지 않음)
-sudo python3 state1_fuzz.py --iterations-per-element 100
-
-# 새로운 방식 (권장)
+# 통합 퍼저 방식 (권장)
 sudo python3 unified_fuzzer.py --state state1 --iterations-per-element 100
+
+# 레거시 개별 퍼저 방식 (여전히 지원됨)
+sudo python3 state1_fuzz.py --iterations-per-element 100
 ```
 
 ## 아키텍처 세부사항
@@ -274,4 +283,12 @@ sudo python3 unified_fuzzer.py --state state1 --iterations-per-element 100
 - V2G 구현의 취약점 식별
 - 프로토콜 준수성 검증
 
-이 도구를 악의적인 목적이나 소유하지 않거나 명시적인 테스트 허가가 없는 시스템에 대해 사용하지 마십시오.
+**중요**: 이 도구를 악의적인 목적이나 소유하지 않거나 명시적인 테스트 허가가 없는 시스템에 대해 사용하지 마십시오. 주로 **EVC_Simulator의 EVSE.py**를 대상으로 한 테스팅 환경에서 사용하도록 설계되었습니다.
+
+## 관련 문서
+
+- [프로젝트 루트 README](../README.md) - 전체 프로젝트 개요
+- [EVC_Simulator README](../EVC_Simulator/README.md) - EVSE 시뮬레이터 (테스트 대상)
+- [설치 가이드](../INSTALLATION.md) - 상세 설치 방법
+- [테스팅 가이드](../TESTING.md) - 다양한 테스트 시나리오
+- [문제 해결](../docs/TROUBLESHOOTING.md) - 일반적인 문제 해결

@@ -1,103 +1,276 @@
-# AcCCS
-Access Capabilities for CCS (AcCCS - pronounced "access" /ˈakˌses/) provides a flexible and inexpensive solution to enable communications testing of various Electric Vehicle (EV) technologies that use the CCS charging standard(s).  This codebase is an example of tools and scripts capable of communicating with and emulating an Electric Vehicle Communications Controller (EVCC) and/or a Supply Equipment Communications Controller (SECC).
+# EVC 시뮬레이터
 
-This project is the result of our efforts to find COTS hardware and existing open source software capable of communicating via HomePlug GreenPHY (HPGP) with CCS enabled vehicles and charging stations.  We are providing some basic scripts to emulate an EV (see [PEV.py](PEV.py)) or an EVSE (see [EVSE.py](EVSE.py)).  These two scripts utilize third-party open source projects that provide Scapy packet definitions for Layer 2 (HPGP - [layerscapy](/layerscapy/)) and Layer 3 (DIN/ISO - [layers](/layers/)). Our goal was to establish a persistent network connection with a target device so that we can test the device for network vulnerabilities.
+EVC 퍼징 프로젝트의 **테스트 대상** 역할을 하는 EVSE(Electric Vehicle Supply Equipment) 시뮬레이터입니다. 실제 충전소의 통신 프로토콜을 구현하여, 퍼저가 테스트할 수 있는 표준적인 V2G 서비스를 제공합니다.
 
-To enable some testing of the IPv6 endpoints, the emulator scripts provide the ability to perform some basic port scans of the target.  This functionality is available using command-line options of the emulator.  The emulators can be further enhanced for additional port scanning activities or even fuzz testing of the selected CCS protocol.
+## 개요
 
-The emulators utilize a Java program ([java_decoder](/java_decoder/)) to encode and decode the XML messages exchanged between an EV and EVSE.  This decoder is from the [V2Gdecoder](https://github.com/FlUxIuS/V2Gdecoder) project and has been patched to fix a couple of bugs identified during our testing.  The Java server is started automatically when executing one of the emulators.
+EVC_Simulator는 다음 역할을 수행합니다:
+- **EVSE 에뮬레이션**: Supply Equipment Communications Controller (SECC) 역할
+- **V2G 프로토콜 구현**: DIN 70121 및 ISO 15118 표준 지원
+- **퍼징 대상**: EVC_Fuzzer의 테스트 타겟으로 동작
 
-**Note:** This code was primarily developed and tested using the old DIN 70121 specification and schema. The newer ISO 15118-2:2010 standard is included but has not been tested.
+## 구성 요소
 
-A description of the [CurrentImplementation](/docs/CurrentImplementation.md) of our AcCCS box, as well as some supporting presentations, are found in the [docs](/docs/) folder.
+### 주요 파일
+- `EVSE.py` - 충전소 에뮬레이터 메인 실행 파일
+- `XMLBuilder.py` - 표준 V2G XML 메시지 구성 도구
 
-**A final word:** All of this code was generated in our lab using extensive trial and error while monitoring communications between a couple EV and EVSE.  It has not been extensively tested with many vehicles or charging stations.  It was not written using formal software development and design methods.  We were just happy when it worked.  It is not pretty.
+### 의존성 (shared/ 디렉토리)
+- `EXIProcessor.py` - EXI 인코딩/디코딩 처리
+- `EmulatorEnum.py` - 프로토콜 상태 및 모드 정의
+- `NMAPScanner.py` - 네트워크 스캐닝 기능
+- `external_libs/` - HomePlugPWN, RISE-V2G 등 외부 라이브러리
 
-## Getting Started
-In order to include the third-party libraries when cloning AcCCS, use the proper git options.  For example:
+## EVSE 시뮬레이터 기능
 
+### 지원 프로토콜 스택
+
+#### Layer 1: 물리 신호 (하드웨어 구성 시)
+- J1772 Control Pilot (CP) 신호 생성
+- Proximity Pilot (PP) 신호 처리
+- GPIO 기반 릴레이 제어 (Raspberry Pi)
+
+#### Layer 2: HomePlug Green PHY
+- SLAC (Signal Level Attenuation Characterization) 프로토콜
+- Association 및 Key Management
+- 사용자 정의 Scapy 레이어 활용
+
+#### Layer 3: 네트워크
+- IPv6 link-local 주소 지정
+- UDP SECC Discovery Protocol 응답
+- TCP V2G 메시징 서버
+
+#### Layer 4: V2G 애플리케이션
+- DIN 70121 메시지 처리 (완전 지원)
+- ISO 15118-2:2010 메시지 (부분 지원)
+- EXI (Efficient XML Interchange) 인코딩/디코딩
+
+### 지원되는 V2G 메시지
+
+#### DIN 70121 (완전 구현)
+1. **SupportedAppProtocolRes** - 지원 프로토콜 응답
+2. **SessionSetupRes** - 세션 설정 응답
+3. **ServiceDiscoveryRes** - 서비스 발견 응답
+4. **ServicePaymentSelectionRes** - 결제 서비스 선택 응답
+5. **ContractAuthenticationRes** - 계약 인증 응답
+6. **ChargeParameterDiscoveryRes** - 충전 파라미터 발견 응답
+7. **CableCheckRes** - 케이블 확인 응답
+8. **PreChargeRes** - 사전 충전 응답
+9. **PowerDeliveryRes** - 전력 전송 응답
+10. **CurrentDemandRes** - 전류 요구 응답
+11. **WeldingDetectionRes** - 용접 감지 응답
+12. **SessionStopRes** - 세션 중지 응답
+
+## 사용법
+
+### 기본 실행
+
+```bash
+# 기본 설정으로 EVSE 시뮬레이터 실행
+sudo python3 EVSE.py
+
+# 특정 네트워크 인터페이스 지정
+sudo python3 EVSE.py --interface eth1
+
+# 가상 네트워크 인터페이스에서 실행 (테스팅용)
+sudo python3 EVSE.py --interface veth-evse
 ```
-git clone --recurse-submodules <clone url>
-git submodule sync
+
+### 명령행 옵션
+
+```bash
+# 도움말 보기
+python3 EVSE.py --help
+
+# 주요 옵션들:
+
+# 네트워크 인터페이스 지정
+python3 EVSE.py --interface eth1
+
+# 실행 모드 설정
+python3 EVSE.py --mode 0  # 0: 완전 대화 (기본)
+python3 EVSE.py --mode 1  # 1: 대화 중단
+python3 EVSE.py --mode 2  # 2: 포트 스캔
+
+# 네트워크 주소 설정
+python3 EVSE.py --source-mac 00:1e:c0:f2:6c:a0
+python3 EVSE.py --source-ip fe80::21e:c0ff:fef2:6ca0
+python3 EVSE.py --source-port 25565
+
+# 프로토콜 선택
+python3 EVSE.py --protocol DIN     # DIN 70121 (기본)
+python3 EVSE.py --protocol ISO-2   # ISO 15118-2
+python3 EVSE.py --protocol ISO-20  # ISO 15118-20
+
+# HomePlug Green PHY 설정
+python3 EVSE.py --NID "\\x9c\\xb0\\xb2\\xbb\\xf5\\x6c\\x0e"
+python3 EVSE.py --NMK "\\x48\\xfe\\x56\\x02\\xdb\\xac\\xcd\\xe5\\x1e\\xda\\xdc\\x3e\\x08\\x1a\\x52\\xd1"
+
+# NMAP 스캔 설정 (모드 2에서 사용)
+python3 EVSE.py --nmap-mac <target_mac>
+python3 EVSE.py --nmap-ip <target_ip>
+python3 EVSE.py --nmap-ports "80,443,1000-2000"
+
+# 하드웨어 테스트 옵션
+python3 EVSE.py --modified-cordset  # 수정된 코드셋 사용 시
 ```
 
-If you encounter errors about git not locating specific repository versions, using this dirty hack seems to work:
+### 퍼징 테스트와의 연동
 
+EVC_Simulator는 EVC_Fuzzer의 테스트 대상으로 설계되었습니다:
+
+```bash
+# 터미널 1: EVSE 시뮬레이터 (테스트 대상)
+cd EVC_Simulator
+sudo python3 EVSE.py --interface veth-evse
+
+# 터미널 2: 퍼저 실행 (별도 터미널)
+cd ../EVC_Fuzzer
+sudo python3 unified_fuzzer.py --state state1 --interface veth-pev
 ```
-git submodule update --force --recursive --init --remote
+
+## 동작 과정
+
+### 1. 초기화 단계
+- 네트워크 인터페이스 설정
+- EXI 디코더 서버 자동 시작
+- IPv6 link-local 주소 구성
+
+### 2. SLAC 협상 처리
+```
+PEV → EVSE: CM_SLAC_PARM.REQ
+EVSE → PEV: CM_SLAC_PARM.CNF
+... (SLAC 프로토콜 완료)
 ```
 
-## Hardware Configuration
+### 3. SECC Discovery 응답
+```
+PEV → Multicast: SECCDiscoveryReq (UDP)
+EVSE → PEV: SECCDiscoveryRes (UDP 포트 15118)
+```
 
-Details regarding our current implementation and hardware configuration is found in the '''docs''' folder.
+### 4. V2G Communication Session
+```
+PEV → EVSE: SupportedAppProtocolReq (TCP 포트 61851)
+EVSE → PEV: SupportedAppProtocolRes
+PEV → EVSE: SessionSetupReq  
+EVSE → PEV: SessionSetupRes
+... (충전 세션 진행)
+```
 
-The ```resources``` directory includes the schematics and design files to create the PWM board used to emulate the SECC.  The following shows how all of the hardware is currently setup in the AcCCS boxes.
+## 설정 요구사항
 
-EVSE DEVOLO: [EVSE side configured dLAN Green Phy Eval Board](https://www.codico.com/en/evse-side-configured-dlan-green-phy-eval-board)\
-PEV DEVOLO: [PEV side configured dLAN Green Phy Eval Board](https://www.codico.com/en/pev-side-configured-dlan-green-phy-eval-board)\
-RASPBERRY PI: [Raspberry Pi 4 Model B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)\
-RELAY: [4 Channel 5V Relay](https://www.sunfounder.com/products/4channel-relay-shield)\
-12V OUT: [12V Isolated DC/DC Converter](https://www.digikey.com/en/products/detail/cui-inc./PYBE30-Q24-S12-T/9859982)\
-5V OUT: [5V Isolated DC/DC Converter](https://www.digikey.com/en/products/detail/cui-inc/PYBE30-Q24-S5-T/9859981)\
-ETH: [USB to RJ45 Adapter](https://www.amazon.com/Gigabit-Adapter-CableCreation-Network-Supporting/dp/B07CKQY8HN)\
-555 Timer: [TLC555CP](https://www.digikey.com/en/products/detail/texas-instruments/TLC555CP/277502)\
-Op-Amp: [TLE2142AMJG](https://www.ti.com/product/TLE2142)
+### 네트워크 설정
+- IPv6 활성화 필수
+- Link-local 주소 자동 할당 또는 수동 설정
+- Raw socket 접근을 위한 root 권한
 
-The devices labeled ETH, RELAY, 5V OUT, 12V OUT, and RASPBERRY PI are generic devices so a specific brand is not required. Nevertheless, I have linked above the exact version of these devices we used in the AcCCS box. A brief description of each of these devices are as follows so that any devices that fits this description can probably be used with little to no alteration. Extra notes regarding the implementation and role of each device are also included.
+### 소프트웨어 의존성
+프로젝트 루트의 requirements.txt 참조:
+```bash
+pip install -r ../requirements.txt
+```
 
-RASPBERRY PI: For this project a raspberry pi was used, but any computer or microcontroller can be used in its place. A pi was used for its small form factor, easily configurable GPIO, and ability to run an OS. Whatever device is used for this role must support the following features: IPv4 and IPv6 networking, 4 digital GPIO outputs, 3 RJ-45 ports or the ability to connect RJ-45 adapters, and python support (unless you don't want to use the scripts provided in this project).
+### 하드웨어 설정 (옵션)
+물리적 하드웨어 테스팅을 위한 Raspberry Pi 구성:
+- GPIO 핀 설정 (릴레이 제어)
+- I2C 인터페이스 활성화
+- Devolo Green PHY 평가 보드 연결
 
-RELAY: For the purposes of this project and relay or switching device can be used. For the hardware implementation of the AcCCS box, 4 channels are used which are controlled by the digital GPIO output of the Raspberry Pi. The first two channels of the relay are used to emulate the J1772 states of a PEV. The J1772 signaling circuit below shows the resistance values used (found in the vehicle controller portion labeled R3 and R2). The next 2 channels are used to connect and disconnect the control pilot and proximity pilot lines for the EVSE emulation to mimic plugging and unplugging the charging cable. When connected, the control pilot line goes directly to the output and the proximity pilot ties a resistance to ground in accordance to the J1772 standard (R6 in the EVSE connector of the signaling circuit).
+## 로그 및 디버깅
 
-12V/5V OUT: These DC/DC power converters were used as a means to get +12V,-12V, and +5V power supplies, so they are not necessary if you have a way to supply these voltages by other means. If the provided configuration is used, the converters must be **ISOLATED** DC/DC converters so that you can tie the positive terminal of one 12V supply to the negative terminal of the other in order to create a -12V supply.
+### 실행 로그
+시뮬레이터는 다음 정보를 출력합니다:
+- 현재 프로토콜 상태
+- 수신된 요청 메시지
+- 전송하는 응답 메시지
+- SLAC 협상 진행 상황
+- TCP 연결 상태
 
-ETH: Any generic USB to RJ-45 adapter can be used. This is needed so that the Raspberry pi can interface with the two Devolo radios via ethernet. Not necessary if your choice of controller has 3 RJ-45 ports.
+### 디버그 모드
+```bash
+# 상세 디버그 정보 출력
+export V2G_DEBUG=1
+sudo python3 EVSE.py --interface eth1
+```
 
-EVSE/PEV DEVOLO: The Devolo eval board used acts as a radio that bridges ethernet communications over cat cable to HomePlug GreenPHY communications over a single signal wire and ground. These boards also automatically complete some of the level 2 HomePlug protocol specific actions, such as forming ALVNs according to the standard, so to work properly must be configured properly. Currently, these radios are purchased pre-configured from Devolo, but there may be some way to flash an unconfigured board with the contents of a configured board. There are also some jumper options present on the eval boards which should be configured so that the HomePlug GreenPHY is output over the two-wire terminal instead of coax.
+### 네트워크 트래픽 모니터링
+```bash
+# V2G TCP 트래픽 캡처
+sudo tcpdump -i eth1 'tcp port 61851'
 
-![Alt text](/resources/AcCCS_Box_BG.png?raw=true "AcCCS Box Layout")
+# HomePlug 트래픽 캡처  
+sudo tcpdump -i eth1 'ether proto 0x88e1'
+```
 
-The circuit shown below is what is used to generate the +12V to -12V 1kHz 5% Duty Cycle PWM signal that is supplied by the EVSE controller. It uses the TLC555CP chip to first generate a +12V to 0V 1kHz 5% Duty Cycle PWM. Other timer ICs could probably be used, but this is what worked for me. The output PWM's frequency and duty cycle are dependant on the values of two resistors and one capacitor (the 1.5k and 25k Ohm resistors and the 47 nanoFarad capacitor). In practice, the values of these components varied enough for the resulting signal to not fit within tolerances for the EVCC to recognize it as a 1kHz 5% PWM. So, in place of a 1.5k resistance a 10k potentiometer was used and in place of a 25k resistance a 22k resistor in series with a 10k potentiometer was used. In this configuration, the output of the 555 timer was probed with an oscilloscope and the potentiometers were tuned until the PWM was as close to the spec as possible. Next, the signal along with -12V DC is input into an Op-Amp so that the resulting output will be the required +12V to -12V PWM. The Op-Amp used is very high speed and maybe overkill, so you may be able to get away with a cheaper IC but this is what worked for me. In practice, the resulting PWM is closer to an +11V peak than +12V, so to compensate the resistor in series with the output was changed to a lower value (from a 1k Ohm to a 680 Ohm resistor). This is done so that when the PEV changes its internal resistances and changes the J1772 states, the resulting voltages are closer to the +9V and +6V peaks required by the standard.
+## 알려진 제한사항
 
-![Alt text](/resources/PWM.png?raw=true "PWM Circuit")
+1. **TLS 미지원**: 현재 평문 TCP 통신만 지원
+2. **Plug and Charge 미구현**: PKI 인증 기능 없음
+3. **ISO 15118-20 미지원**: 최신 표준 미구현
+4. **단일 세션**: 동시 다중 PEV 연결 미지원
 
-![Alt text](/resources/J1772_BG.png?raw=true "J1772 Signaling Circuit")
+## 확장 및 개발
 
-## Software Configuration
+### 새로운 메시지 추가
+1. `XMLBuilder.py`에 메시지 구성 메서드 추가
+2. `EVSE.py`에 메시지 처리 로직 구현
+3. 상태 전환 로직 업데이트
 
-The DIN and ISO standards define that the TCP/IP communication between EVCC and SECC equipment use IPv6 networking with link-local addressing. For this reason, to properly communicate to these devices from a controller, IPv6 networking on the controller must be configured for link-local addressing on the interfaces that connect to the Devolo radios.
+### 커스터마이징
+- 충전 파라미터 수정
+- 에러 응답 시뮬레이션
+- 특정 취약점 테스트를 위한 비정상 동작 구현
 
-### Python module dependencies:
-* scapy
-* tqdm
-* smbus
+## 문제 해결
 
-**Scapy** is used for all of the packet activities such as crafting, manipulation, sending, and receiving packets. 
+### 일반적인 문제
 
-**TQDM** is used for neat progress bars in scripts involving the custom NMAP functionality for scanning SECC and EVCC devices. Custom scapy packets provided by the [HomePlugPWN](https://github.com/FlUxIuS/HomePlugPWN) project are included in the [layerscapy](/layerscapy/) folder. 
+1. **권한 거부**:
+   ```bash
+   sudo python3 EVSE.py --interface eth1
+   ```
 
-**Smbus** is used for I2C communications with the PCB to operate the relays.  This replaces previous code where GPIO pins from the RASPBERRY PI were used for relay operation.
+2. **IPv6 비활성화**:
+   ```bash
+   sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
+   ```
 
-Below is a brief description of the scripts in this project. These scripts are provided as examples of how you might utilize this hardware in your own testing environment. This is not intended to be a finished product with all desired functionality. Some functionality is still a work in progress.
+3. **EXI 디코더 오류**:
+   ```bash
+   cd ../shared/java_decoder
+   java -jar V2Gdecoder-jar-with-dependencies.jar -w
+   ```
 
-**EVSE.py:** This script emulates an EVSE when run. When the AcCCS's EVSE CP and SIG GND are connected to the PEV's CP and GND, the script follows the J1772 spec by going through layer 2 HomePlug GreenPHY SLAC negotiations, layer 3 UDP SECC Discovery Protocol, and then layer 3 TCP/IPv6 communications. Currently, the TCP/IPv6 communications only support the DIN spec, but future work includes implementing the ISO-2 and ISO-20 specs which are required for TLS encrypted sessions, Plug-n-charge, and 2-way power transfer.
+4. **포트 충돌**:
+   ```bash
+   # 61851 포트 사용 중인 프로세스 확인
+   sudo lsof -i :61851
+   ```
 
-**PEV.py:** Same as EVSE.py, but AcCCS's PEV CP and SIG GND should be connected to the EVSE's CP and GND pins.
+상세한 문제 해결은 [../docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)를 참조하세요.
 
-**MIM.py:** **NOT IMPLEMENTED** | Forms two separate connections to a PEV and EVSE simultaneously. Will forward packets from one conversation to the other, changing the contents if specified by the user. Cannot form a simple bridge between the two because of high amounts of cross-talk between CP lines. This protocol is very susceptible to RF interference.
+## 관련 문서
 
-**EXIProcessor.py:** Python wrapper for using the java webserver EXI processor found in the java_decoder folder. This project uses a modified version of the jar file provided by the [V2Gdecoder](https://github.com/FlUxIuS/V2Gdecoder) project which itself is based on the [RISE-V2G](https://github.com/SwitchEV/RISE-V2G) project. This modified jar file is named V2GdecoderMOD.jar and adds functionality to specify which port the webserver will listen on as well as an argument to specify with which schema to encode and decode (DIN vs ISO-2 vs ISO-20).
+- [프로젝트 루트 README](../README.md) - 전체 프로젝트 개요
+- [EVC_Fuzzer README](../EVC_Fuzzer/README.md) - 퍼징 도구 (이 시뮬레이터를 테스트함)
+- [설치 가이드](../INSTALLATION.md) - 상세 설치 방법
+- [테스팅 가이드](../TESTING.md) - 다양한 테스트 시나리오
+- [문제 해결](../docs/TROUBLESHOOTING.md) - 일반적인 문제 해결
 
-**XMLBuilder.py:** Python script used to create and manipulate XML payloads that follow the DIN and ISO specs. The default values for each of these packet types are taken from real values that were used by EVSEs and PEVs captured during a normal charging session.
+## 라이선스 및 인정
 
-### Current TODOs:
-* Implement ISO 15118-2:2010, ISO 15118-2:2015 and ISO 15118-20 spec into XML builder script and emulator scripts
-* Complete and test MIM script
-* Make scripts more user friendly (ex. add cmd line args instead of commenting out code)
-* Find a working EXI processor that isn't a java webserver :)
+이 시뮬레이터는 다음 오픈소스 프로젝트를 기반으로 합니다:
+- [AcCCS](https://github.com/IdahoLabResearch/AcCCS) - 원본 Access Capabilities for CCS 프로젝트
+- [RISE-V2G](https://github.com/SwitchEV/RISE-V2G) - V2G 프로토콜 참조 구현
+- [V2Gdecoder](https://github.com/FlUxIuS/V2Gdecoder) - EXI 인코딩/디코딩
+- [HomePlugPWN](https://github.com/FlUxIuS/HomePlugPWN) - HomePlug 프로토콜 레이어
 
-## Notes
+### 저작권 고지
+```
+MIT License
 
-Only three scripts are expected to be run from command line: EVSE.py, PEV.py, and MIM.py. The other scripts and files serve as tools and utilities for these scripts to run. 
+Copyright (c) 2023 Idaho National Laboratory Research Projects
+```
 
-The ```EVSE.py``` and ```PEV.py``` scripts include some basic functionality to port scan (similar to NMAP) while the emulator is running. In my limited testing the EVSEs stay connected to the emulator indefinitely, but the PEVs terminate the connection after a couple of minutes without any power transfer. For this reason a simple TCP syn scan is included in the script to pick up where the scan left off when the connection is reestablished.
+원본 EVSE 시뮬레이터는 Idaho National Laboratory의 AcCCS 프로젝트에서 개발되었으며, 이 프로젝트에서는 퍼징 테스트 환경에 맞게 수정 및 확장하였습니다.
