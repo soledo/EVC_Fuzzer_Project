@@ -166,10 +166,25 @@ EVSE → PEV: SessionSetupRes
 - Raw socket 접근을 위한 root 권한
 
 ### 소프트웨어 의존성
-프로젝트 루트의 requirements.txt 참조:
+
+#### 1. 시스템 의존성 설치:
 ```bash
-pip install -r ../requirements.txt
+# Ubuntu/Debian
+sudo apt update
+sudo apt install openjdk-11-jdk python3-pip
+
+# 설치 확인
+java -version
+python3 --version
 ```
+
+#### 2. Python 패키지 설치:
+```bash
+# sudo 권한으로 실행하므로 시스템 전역 설치 필요
+sudo pip3 install -r ../requirements.txt
+```
+
+**중요**: Java는 EXI 인코딩/디코딩을 위해 **필수**입니다. EVSE 시뮬레이터가 시작할 때 자동으로 Java EXI 서버를 실행합니다.
 
 ### 하드웨어 설정 (옵션)
 물리적 하드웨어 테스팅을 위한 Raspberry Pi 구성:

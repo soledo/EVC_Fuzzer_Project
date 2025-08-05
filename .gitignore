@@ -58,6 +58,7 @@ logs/
 Thumbs.db
 
 # Project specific
+fuzzing_reports/
 fuzzing_report_*.json
 fuzzing_state_*.json
 environment_report.json

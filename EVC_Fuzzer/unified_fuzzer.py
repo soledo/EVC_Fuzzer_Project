@@ -452,8 +452,41 @@ class _TCPHandler:
         self.handshake_complete = Event()
 
         self.iterations_per_element = iterations_per_element
-        self.state_file = f'fuzzing_state_{target_state}.json'
+        
+        # Create reports directory with proper permissions
+        self.reports_dir = 'fuzzing_reports'
+        os.makedirs(self.reports_dir, exist_ok=True)
+        
+        # Fix ownership if running as root
+        if os.geteuid() == 0:  # Running as root
+            # Get the user who invoked sudo
+            sudo_user = os.environ.get('SUDO_USER')
+            if sudo_user:
+                import pwd
+                import grp
+                try:
+                    pw_record = pwd.getpwnam(sudo_user)
+                    user_uid = pw_record.pw_uid
+                    user_gid = pw_record.pw_gid
+                    os.chown(self.reports_dir, user_uid, user_gid)
+                except:
+                    pass  # If it fails, just continue
+        
+        self.state_file = os.path.join(self.reports_dir, f'fuzzing_state_{target_state}.json')
         self.state = {}
+        
+        # Store user info for file ownership fixing
+        self.sudo_user = os.environ.get('SUDO_USER')
+        self.user_uid = None
+        self.user_gid = None
+        if self.sudo_user and os.geteuid() == 0:
+            try:
+                import pwd
+                pw_record = pwd.getpwnam(self.sudo_user)
+                self.user_uid = pw_record.pw_uid
+                self.user_gid = pw_record.pw_gid
+            except:
+                pass
         
         # Get state configuration
         if target_state in STATE_CONFIG:
@@ -725,9 +758,16 @@ class _TCPHandler:
             'crash_details': self.state.get('crash_inputs', [])
         }
 
-        report_file = f'fuzzing_report_{self.target_state}.json'
+        report_file = os.path.join(self.reports_dir, f'fuzzing_report_{self.target_state}.json')
         with open(report_file, 'w') as f:
             json.dump(report, f, indent=4)
+        
+        # Fix file ownership
+        if self.user_uid is not None and self.user_gid is not None:
+            try:
+                os.chown(report_file, self.user_uid, self.user_gid)
+            except:
+                pass
 
         print(f"\n{'=' * 50}")
         print(f"Fuzzing Summary Report for {self.target_state}")
@@ -899,6 +939,14 @@ class _TCPHandler:
     def save_state(self):
         with open(self.state_file, 'w') as f:
             json.dump(self.state, f, indent=4)
+        
+        # Fix file ownership
+        if self.user_uid is not None and self.user_gid is not None:
+            try:
+                os.chown(self.state_file, self.user_uid, self.user_gid)
+            except:
+                pass
+                
         print(f"Saved fuzzing state to {self.state_file}")
 
 

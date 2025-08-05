@@ -70,8 +70,10 @@ class EXIProcessor:
             req = requests.post(url=f"http://localhost:{self.port}/", headers={"Format": "XML"}, data=xmlString, timeout=2)
         except Timeout:
             print("ERROR: Connection to the java webserver timed out.")
+            return None
         except Exception as e:
             print(f"ERROR: XML string\n{xmlString}\ncaused exception\n{e}")
+            return None
 
         # This occurs sometimes, specifically if the html body of the request is greater than 4096 bytes
         if req.text == "null":

@@ -19,12 +19,28 @@ EVC Fuzzer가 **통합 아키텍처로 업데이트**되어 모든 상태별 퍼
 
 ### 사전 요구사항
 
-1. **의존성 설치**:
+1. **시스템 의존성 설치**:
    ```bash
-   pip install scapy tqdm smbus requests
+   # Ubuntu/Debian
+   sudo apt update
+   sudo apt install openjdk-11-jdk python3-pip
+   
+   # 설치 확인
+   java -version
+   python3 --version
    ```
 
-2. **네트워크 환경 설정** (로컬 테스트용 가상 네트워크):
+2. **Python 패키지 설치**:
+   ```bash
+   # sudo 권한으로 실행하므로 시스템 전역 설치 필요
+   sudo pip3 install -r ../requirements.txt
+   # 또는 개별 설치:
+   # sudo pip3 install scapy tqdm smbus requests colorama
+   ```
+
+**중요**: Java는 EXI 인코딩/디코딩을 위해 **필수**입니다. 퍼저가 시작할 때 자동으로 별도의 Java EXI 서버를 실행합니다.
+
+3. **네트워크 환경 설정** (로컬 테스트용 가상 네트워크):
    ```bash
    # 가상 이더넷 페어 생성
    sudo ip link add veth-pev type veth peer name veth-evse
@@ -143,12 +159,14 @@ sudo python3 unified_fuzzer.py --state state2 --protocol ISO-2 --iterations-per-
 
 ## 출력 및 보고
 
+퍼징 결과는 **`fuzzing_reports/` 디렉토리**에 자동으로 저장됩니다.
+
 ### 퍼징 상태 파일
-- `fuzzing_state_[state].json`: 재시작 기능을 위한 현재 진행 상황 저장
+- `fuzzing_reports/fuzzing_state_[state].json`: 재시작 기능을 위한 현재 진행 상황 저장
 - 성공적으로 완료되면 자동으로 제거됨
 
 ### 크래시 보고서
-- `fuzzing_report_[state].json`: 종합적인 크래시 분석
+- `fuzzing_reports/fuzzing_report_[state].json`: 종합적인 크래시 분석
 - 포함 내용:
   - 총 시도 횟수 및 크래시 횟수
   - 상세한 크래시 정보
@@ -176,29 +194,23 @@ sudo python3 unified_fuzzer.py --state state2 --protocol ISO-2 --iterations-per-
 }
 ```
 
-## 통합 퍼저 vs 레거시 퍼저
+## 통합 퍼저 아키텍처
 
-이 프로젝트는 두 가지 퍼징 방식을 제공합니다:
+이 프로젝트는 **통합 퍼저 아키텍처**를 사용합니다:
 
-### 통합 퍼저 (권장)
-- **`unified_fuzzer.py`** - 모든 상태를 하나의 도구로 처리
+### 통합 퍼저 (`unified_fuzzer.py`)
+- **모든 V2G 상태를 하나의 도구로 처리**
 - 매개변수를 통한 상태 선택 (`--state state1`)
 - 일관된 인터페이스와 보고 시스템
 - 중앙화된 설정 관리
+- 깔끔한 코드 유지보수
 
-### 레거시 개별 퍼저 (호환성)
-- **`state1_fuzz.py` ~ `state10_fuzz.py`** - 각 상태별 독립 도구
-- 기존 워크플로우와의 호환성 유지
-- 특정 상태만 집중적으로 테스트할 때 유용
-- 개별 맞춤형 설정 가능
-
-### 사용 예제 비교
+### 사용 예제
 ```bash
-# 통합 퍼저 방식 (권장)
+# 다양한 상태 퍼징
 sudo python3 unified_fuzzer.py --state state1 --iterations-per-element 100
-
-# 레거시 개별 퍼저 방식 (여전히 지원됨)
-sudo python3 state1_fuzz.py --iterations-per-element 100
+sudo python3 unified_fuzzer.py --state state3 --iterations-per-element 50
+sudo python3 unified_fuzzer.py --state state10 --iterations-per-element 200
 ```
 
 ## 아키텍처 세부사항

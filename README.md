@@ -34,12 +34,24 @@ ISO 15118 및 DIN 70121 프로토콜을 사용하는 전기차 통신 제어기(
    cd EVC_Fuzzing_Project
    ```
 
-2. 의존성 설치:
+2. 시스템 의존성 설치:
    ```bash
-   pip install -r requirements.txt
+   # Ubuntu/Debian
+   sudo apt update
+   sudo apt install openjdk-11-jdk python3-pip
+   
+   # 설치 확인
+   java -version
+   python3 --version
    ```
 
-3. 자세한 설치 방법은 [INSTALLATION.md](INSTALLATION.md)를 참조하세요
+3. Python 패키지 설치 (시스템 전역):
+   ```bash
+   # sudo 권한으로 실행하므로 시스템 전역 설치 필요
+   sudo pip3 install -r requirements.txt
+   ```
+
+4. 자세한 설치 방법은 [INSTALLATION.md](INSTALLATION.md)를 참조하세요
 
 ### 기본 사용법
 
@@ -75,8 +87,8 @@ EVC_Fuzzing_Project/
 │   └── XMLBuilder.py      # 정상 V2G 메시지 구성
 ├── EVC_Fuzzer/            # 퍼징 프레임워크 (테스트 도구)
 │   ├── unified_fuzzer.py  # 통합 퍼징 엔진 (메인)
-│   ├── state*_fuzz.py     # 개별 상태별 퍼저들 (레거시)
-│   └── XMLFormat.py       # 변조된 메시지 생성
+│   ├── XMLFormat.py       # 변조된 메시지 생성
+│   └── fuzzing_reports/   # 퍼징 결과 보고서 저장 디렉토리
 ├── shared/                # 공유 리소스
 │   ├── EXIProcessor.py    # EXI 인코딩/디코딩
 │   ├── EmulatorEnum.py    # 공통 상수 정의
@@ -131,10 +143,6 @@ EVC_Fuzzing_Project/
 2. 지원되는 플랫폼 중 최소 하나에서 변경사항을 테스트하세요
 3. 필요에 따라 문서를 업데이트하세요
 4. 명확한 설명과 함께 풀 리퀘스트를 제출하세요
-
-## 라이선스
-
-[여기에 라이선스를 명시하세요]
 
 ## 지원
 
