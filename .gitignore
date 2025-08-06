@@ -84,6 +84,6 @@ output/
 results/
 
 # Claude Code files
-CLAUDE.md
 .claude
 .claude/
+
