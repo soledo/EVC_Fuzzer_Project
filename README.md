@@ -111,6 +111,7 @@ EVC_Fuzzing_Project/
 
 ## 문서
 
+- [CHANGELOG.md](CHANGELOG.md) - 최신 변경사항 및 수정 로그
 - [INSTALLATION.md](INSTALLATION.md) - 자세한 설치 방법
 - [TESTING.md](TESTING.md) - 테스팅 시나리오 및 가이드
 - [EVC_Simulator/README.md](EVC_Simulator/README.md) - 시뮬레이터 세부사항
