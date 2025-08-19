@@ -616,7 +616,7 @@ class _TCPHandler:
     def getEXIFromPayload(self, data):
         data = binascii.hexlify(data)
         xmlString = self.exi.decode(data)
-        # print(f"XML String: {xmlString}")
+        # print(f"XML String: {xmlString}") # Uncomment this for debugging
         root = ET.fromstring(xmlString)
 
         if root.text is None:
@@ -625,7 +625,6 @@ class _TCPHandler:
                 return self.xml.getEXI()
 
             name = root[1][0].tag
-            print(f"Request: {name}")
             if "SessionSetupReq" in name:
                 self.xml.SessionSetupResponse()
             elif "ServiceDiscoveryReq" in name:

@@ -102,12 +102,13 @@ sudo python3 unified_fuzzer.py --state state1 --interface veth-pev --iterations-
 | state2  | SessionSetup | SessionSetupRequest 퍼징 |
 | state3  | ServiceDiscovery | ServiceDiscoveryRequest 퍼징 |
 | state4  | ServicePaymentSelection | ServicePaymentSelectionRequest 퍼징 |
-| state5  | ChargeParameterDiscovery | ChargeParameterDiscoveryRequest 퍼징 |
-| state6  | CableCheck | CableCheckRequest 퍼징 |
-| state7  | PreCharge | PreChargeRequest 퍼징 |
-| state8  | PowerDelivery | PowerDeliveryRequest 퍼징 |
-| state9  | CurrentDemand | CurrentDemandRequest 퍼징 |
-| state10 | WeldingDetection | WeldingDetectionRequest 퍼징 |
+| state5  | ContractAuthentication | ContractAuthenticationRequest 퍼징 |
+| state6  | ChargeParameterDiscovery | ChargeParameterDiscoveryRequest 퍼징 |
+| state7  | CableCheck | CableCheckRequest 퍼징 |
+| state8  | PreCharge | PreChargeRequest 퍼징 |
+| state9  | PowerDelivery | PowerDeliveryRequest 퍼징 |
+| state10 | CurrentDemand | CurrentDemandRequest 퍼징 |
+| state11 | SessionStop | SessionStopRequest 퍼징 |
 
 ## 명령행 옵션
 

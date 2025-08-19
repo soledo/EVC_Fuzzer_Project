@@ -3,6 +3,7 @@
 import sys, os
 sys.path.append("../shared/external_libs/HomePlugPWN")
 sys.path.append("../shared/external_libs/V2GInjector/core")
+sys.path.append("../shared/external_libs/V2GInjector")
 sys.path.append("../shared")
 
 from threading import Thread, Event
@@ -35,65 +36,72 @@ STATE_CONFIG = {
     'state2': {
         'name': 'SessionSetup', 
         'description': 'Fuzzes the SessionSetupRequest',
-        'elements_to_modify': ['V2G_Message/Body/SessionSetupReq/EVCCID'],
+        'elements_to_modify': ['EVCCID'],
         'wait_for_message': 'sessionSetupRes',
         'xml_method': 'SessionSetupRequest'
     },
     'state3': {
         'name': 'ServiceDiscovery',
         'description': 'Fuzzes the ServiceDiscoveryRequest',
-        'elements_to_modify': ['V2G_Message/Body/ServiceDiscoveryReq/ServiceScope', 'V2G_Message/Body/ServiceDiscoveryReq/ServiceCategory'],
+        'elements_to_modify': ['ServiceCategory'],
         'wait_for_message': 'sessionSetupRes',
         'xml_method': 'ServiceDiscoveryRequest'
     },
     'state4': {
         'name': 'ServicePaymentSelection',
         'description': 'Fuzzes the ServicePaymentSelectionRequest',
-        'elements_to_modify': ['V2G_Message/Body/ServicePaymentSelectionReq/SelectedPaymentOption', 'V2G_Message/Body/ServicePaymentSelectionReq/SelectedServiceList/SelectedService/ServiceID'],
+        'elements_to_modify': ['SelectedPaymentOption', 'ServiceID'],
         'wait_for_message': 'serviceDiscoveryRes',
         'xml_method': 'ServicePaymentSelectionRequest'
     },
     'state5': {
-        'name': 'ChargeParameterDiscovery',
-        'description': 'Fuzzes the ChargeParameterDiscoveryRequest',
-        'elements_to_modify': ['V2G_Message/Body/ChargeParameterDiscoveryReq/RequestedEnergyTransferMode', 'V2G_Message/Body/ChargeParameterDiscoveryReq/EVChargeParameter/DepartureTime'],
+        'name': 'ContractAuthentication',
+        'description': 'Fuzzes the ContractAuthenticationRequest',
+        'elements_to_modify': ['GenChallenge'],
         'wait_for_message': 'servicePaymentSelectionRes',
-        'xml_method': 'ChargeParameterDiscoveryRequest'
+        'xml_method': 'ContractAuthenticationRequest'
     },
     'state6': {
+        'name': 'ChargeParameterDiscovery',
+        'description': 'Fuzzes the ChargeParameterDiscoveryRequest',
+        'elements_to_modify': ['EVRequestedEnergyTransferType', 'EVReady'],
+        'wait_for_message': 'contractAuthenticationRes',
+        'xml_method': 'ChargeParameterDiscoveryRequest'
+    },
+    'state7': {
         'name': 'CableCheck',
         'description': 'Fuzzes the CableCheckRequest',
-        'elements_to_modify': ['V2G_Message/Body/CableCheckReq/DC_EVStatus/EVReady', 'V2G_Message/Body/CableCheckReq/DC_EVStatus/EVCabinConditioning'],
+        'elements_to_modify': ['EVReady'],
         'wait_for_message': 'chargeParameterDiscoveryRes',
         'xml_method': 'CableCheckRequest'
     },
-    'state7': {
+    'state8': {
         'name': 'PreCharge',
         'description': 'Fuzzes the PreChargeRequest',
-        'elements_to_modify': ['V2G_Message/Body/PreChargeReq/DC_EVStatus/EVReady', 'V2G_Message/Body/PreChargeReq/EVTargetVoltage/Value'],
+        'elements_to_modify': ['EVReady', 'TargetVoltageValue'],
         'wait_for_message': 'cableCheckRes',
         'xml_method': 'PreChargeRequest'
     },
-    'state8': {
+    'state9': {
         'name': 'PowerDelivery',
         'description': 'Fuzzes the PowerDeliveryRequest',
-        'elements_to_modify': ['V2G_Message/Body/PowerDeliveryReq/ChargeProgress', 'V2G_Message/Body/PowerDeliveryReq/DC_EVPowerDeliveryParameter/DC_EVStatus/EVReady'],
+        'elements_to_modify': ['ReadyToChargeState', 'EVReady'],
         'wait_for_message': 'preChargeRes',
         'xml_method': 'PowerDeliveryRequest'
     },
-    'state9': {
+    'state10': {
         'name': 'CurrentDemand',
         'description': 'Fuzzes the CurrentDemandRequest',
-        'elements_to_modify': ['V2G_Message/Body/CurrentDemandReq/DC_EVStatus/EVReady', 'V2G_Message/Body/CurrentDemandReq/EVTargetCurrent/Value'],
+        'elements_to_modify': ['EVReady', 'TargetCurrentValue'],
         'wait_for_message': 'powerDeliveryRes',
         'xml_method': 'CurrentDemandRequest'
     },
-    'state10': {
-        'name': 'WeldingDetection',
-        'description': 'Fuzzes the WeldingDetectionRequest',
-        'elements_to_modify': ['V2G_Message/Body/WeldingDetectionReq/DC_EVStatus/EVReady', 'V2G_Message/Body/WeldingDetectionReq/DC_EVStatus/EVCabinConditioning'],
+    'state11': {
+        'name': 'SessionStop',
+        'description': 'Fuzzes the SessionStopRequest',
+        'elements_to_modify': ['ChargingSession'],
         'wait_for_message': 'currentDemandRes',
-        'xml_method': 'WeldingDetectionRequest'
+        'xml_method': 'SessionStopRequest'
     }
 }
 
@@ -108,6 +116,7 @@ class PEV:
         self.protocol = Protocol(args.protocol[0]) if args.protocol else Protocol.DIN
         self.iterations_per_element = args.iterations_per_element
         self.target_state = args.state
+        self.verbose = getattr(args, 'verbose', False)
 
         self.destinationMAC = None
         self.destinationIP = None
@@ -116,7 +125,7 @@ class PEV:
         self.exi = EXIProcessor(self.protocol)
         self.slac = _SLACHandler(self)
         self.xml = PacketHandler()
-        self.tcp = _TCPHandler(self, self.iterations_per_element, self.target_state)
+        self.tcp = _TCPHandler(self, self.iterations_per_element, self.target_state, self.verbose)
 
         self.I2C_ADDR = 0x20
         self.CONTROL_REG = 0x9
@@ -418,7 +427,7 @@ class _SLACHandler:
 
 
 class _TCPHandler:
-    def __init__(self, pev: PEV, iterations_per_element, target_state):
+    def __init__(self, pev: PEV, iterations_per_element, target_state, verbose=False):
         self.pev = pev
         self.iface = self.pev.iface
         self.target_state = target_state
@@ -452,6 +461,17 @@ class _TCPHandler:
         self.handshake_complete = Event()
 
         self.iterations_per_element = iterations_per_element
+        
+        # 평가 지표 변수들
+        self.total_messages_sent = 0      # MT - 총 전송된 메시지 수
+        self.correct_responses = 0        # MC - 정확한 응답을 받은 메시지 수
+        self.incorrect_responses = 0      # MIC - 부정확한 응답을 받은 메시지 수
+        self.valid_request_errors = 0     # MCE - 정상 요청이 에러를 유발한 경우의 수
+        self.non_error_fuzzes = 0         # MR - 비정상 요청이 에러를 유발하지 않은 경우의 수
+        self.crashes = 0                  # MCC - 시스템 충돌(Crash)을 유발한 경우의 수
+        
+        # 현재 메시지 상태 추적용
+        self.current_message_is_normal = True  # 현재 메시지가 정상인지 여부
         
         # Create reports directory with proper permissions
         self.reports_dir = 'fuzzing_reports'
@@ -498,6 +518,15 @@ class _TCPHandler:
         self.crash_info = []
         self.total_attempts = 0
         self.total_crashes = 0
+        
+        # 포괄적인 데이터 저장을 위한 변수들
+        self.all_test_results = []           # 모든 테스트 시도 내역
+        self.vulnerability_candidates = []   # 취약점 후보들
+        self.normal_test_results = []        # 정상 케이스 결과들
+        self.current_element = None          # 현재 테스트 중인 엘리먼트
+        self.current_iteration = 0           # 현재 iteration 번호
+        self.session_start_time = time.time()  # 세션 시작 시간
+        self.verbose = verbose               # 상세 출력 플래그
         self.state_lock = threading.Lock()
 
         print(f"INFO (PEV): Initialized fuzzer for {self.state_config['name']} state")
@@ -639,6 +668,10 @@ class _TCPHandler:
             self.startSession()
         elif pkt[TCP].flags & 0x01:
             self.fin()
+        else:
+            # 응답 메시지 분석 및 지표 업데이트
+            if payload_len > 0:
+                self.analyze_response(pkt)
 
         self.response_received.set()
 
@@ -672,8 +705,8 @@ class _TCPHandler:
                     current_elements = next_elements
                 target_elements = current_elements
             else:
-                # Simple element name
-                target_elements = list(root.iter(element_name))
+                # Simple element name - search for elements with this local name (ignoring namespace)
+                target_elements = [elem for elem in root.iter() if elem.tag.split('}')[-1] == element_name]
 
             if not target_elements:
                 print(f"WARNING: Element {element_name} not found in XML")
@@ -687,8 +720,23 @@ class _TCPHandler:
                 start_iteration = iteration_count.get(element_name, 0)
 
                 for iteration in range(start_iteration, self.iterations_per_element):
-                    mutation_func = random.choice([self.value_flip, self.random_value, self.random_deletion, self.random_insertion])
-                    mutated_value = mutation_func(mutated_value)
+                    # 현재 테스트 상태 설정
+                    self.current_element = element_name
+                    self.current_iteration = iteration + 1
+                    
+                    # iteration == 0: 정상 메시지 (원본 값), iteration > 0: 비정상 메시지 (변조된 값)
+                    is_normal_message = (iteration == 0)
+                    self.current_message_is_normal = is_normal_message
+                    
+                    if is_normal_message:
+                        # 첫 번째 iteration은 원본 값으로 전송 (정상 메시지)
+                        mutated_value = elem.text
+                        mutation_func_name = "original_value"
+                    else:
+                        # 이후 iteration들은 변조된 값으로 전송 (비정상 메시지)
+                        mutation_func = random.choice([self.value_flip, self.random_value, self.random_deletion, self.random_insertion])
+                        mutated_value = mutation_func(mutated_value)
+                        mutation_func_name = mutation_func.__name__
 
                     if not mutated_value:
                         print(f"Mutated value became empty, reverting to previous value: {elem.text}")
@@ -696,12 +744,22 @@ class _TCPHandler:
 
                     elem.text = mutated_value
                     fuzzed_xml = ET.tostring(root, encoding='unicode')
-
-                    print(f"\n{'=' * 50}")
-                    print(f"[{self.target_state}] [{element_name}] Iteration {iteration+1}: Mutated using {mutation_func.__name__}")
-                    print(f"Mutated value: {mutated_value}")
-                    print(f"Fuzzed XML:\n{fuzzed_xml}")
-                    print(f"{'=' * 50}\n")
+                    
+                    # 현재 테스트 정보 저장 (나중에 update_metrics에서 사용)
+                    self.current_fuzzed_xml = fuzzed_xml
+                    self.current_mutated_value = mutated_value  
+                    self.current_mutation_function = mutation_func_name
+                    
+                    message_type = "NORMAL" if is_normal_message else "FUZZED"
+                    if self.verbose:
+                        print(f"\n{'=' * 50}")
+                        print(f"[{self.target_state}] [{element_name}] Iteration {iteration+1}: {message_type} message")
+                        print(f"Mutation: {mutation_func_name}")
+                        print(f"Value: {mutated_value}")
+                        print(f"XML:\n{fuzzed_xml}")
+                        print(f"{'=' * 50}\n")
+                    else:
+                        print(f"[{self.target_state}] [{element_name}] Iteration {iteration+1}: {message_type} message")
 
                     self.state['total_attempts'] = total_attempts + 1
                     total_attempts += 1
@@ -714,6 +772,9 @@ class _TCPHandler:
                         exi_payload_bytes = binascii.unhexlify(exi_payload)
                         packet = self.buildV2G(exi_payload_bytes)
                         tcp_payload_length = len(bytes(packet[TCP].payload))
+                        
+                        # 응답 시간 측정 시작
+                        self.current_test_start_time = time.time()
                         sendp(packet, iface=self.iface, verbose=0)
                         self.seq += tcp_payload_length
 
@@ -732,7 +793,7 @@ class _TCPHandler:
                             'iteration': iteration + 1,
                             'mutated_value': mutated_value,
                             'fuzzed_xml': fuzzed_xml,
-                            'mutation_function': mutation_func.__name__
+                            'mutation_function': mutation_func_name
                         }
                         self.state['crash_inputs'].append(crash_detail)
 
@@ -749,13 +810,65 @@ class _TCPHandler:
         self.generate_report()
 
     def generate_report(self):
+        # 평가 지표 계산
+        if self.total_messages_sent > 0:
+            correct_response_rate = (self.correct_responses / self.total_messages_sent) * 100
+            incorrect_response_rate = (self.incorrect_responses / self.total_messages_sent) * 100
+            valid_request_error_rate = (self.valid_request_errors / self.total_messages_sent) * 100
+            non_error_fuzz_rate = (self.non_error_fuzzes / self.total_messages_sent) * 100
+            crash_rate = (self.crashes / self.total_messages_sent) * 100
+        else:
+            correct_response_rate = incorrect_response_rate = valid_request_error_rate = non_error_fuzz_rate = crash_rate = 0.0
+
+        # 세션 통계
+        session_duration = time.time() - self.session_start_time
+        
         report = {
+            # 기본 정보
             'target_state': self.target_state,
             'state_name': self.state_config['name'],
             'description': self.state_config['description'],
+            'session_start_time': self.session_start_time,
+            'session_duration': session_duration,
+            'elements_tested': list(set([result['element'] for result in self.all_test_results if result['element']])),
+            
+            # 기존 지표들
             'total_attempts': self.state.get('total_attempts', 0),
             'total_crashes': self.state.get('total_crashes', 0),
-            'crash_details': self.state.get('crash_inputs', [])
+            'crash_details': self.state.get('crash_inputs', []),
+            
+            # 논문 기준 평가 지표
+            'metrics': {
+                'total_messages_sent': self.total_messages_sent,           # MT
+                'correct_responses': self.correct_responses,               # MC  
+                'incorrect_responses': self.incorrect_responses,           # MIC
+                'valid_request_errors': self.valid_request_errors,         # MCE
+                'non_error_fuzzes': self.non_error_fuzzes,                 # MR
+                'crashes': self.crashes,                                   # MCC
+                
+                # 백분율 지표
+                'correct_response_rate': round(correct_response_rate, 2),
+                'incorrect_response_rate': round(incorrect_response_rate, 2),
+                'valid_request_error_rate': round(valid_request_error_rate, 2),
+                'non_error_fuzz_rate': round(non_error_fuzz_rate, 2),
+                'crash_rate': round(crash_rate, 2)
+            },
+            
+            
+            # 포괄적인 데이터
+            'comprehensive_data': {
+                'total_test_results': len(self.all_test_results),
+                'normal_test_results_count': len(self.normal_test_results),
+                'vulnerability_candidates_count': len(self.vulnerability_candidates),
+                'mutation_function_stats': self.get_mutation_stats(),
+                'element_stats': self.get_element_stats(),
+                'response_time_stats': self.get_response_time_stats()
+            },
+            
+            # 전체 테스트 결과 (선택적으로 저장 - 크기가 클 수 있음)
+            'all_test_results': self.all_test_results,
+            'normal_test_results': self.normal_test_results, 
+            'vulnerability_candidates': self.vulnerability_candidates
         }
 
         report_file = os.path.join(self.reports_dir, f'fuzzing_report_{self.target_state}.json')
@@ -769,14 +882,100 @@ class _TCPHandler:
             except:
                 pass
 
-        print(f"\n{'=' * 50}")
-        print(f"Fuzzing Summary Report for {self.target_state}")
+        # 상세한 보고서 출력
+        self.print_detailed_report(report)
+        print(f"Detailed report saved to: {report_file}")
+
+    def get_mutation_stats(self):
+        """뮤테이션 함수 통계"""
+        mutation_counts = {}
+        for result in self.all_test_results:
+            if result['mutation_function']:
+                mutation_counts[result['mutation_function']] = mutation_counts.get(result['mutation_function'], 0) + 1
+        return mutation_counts
+    
+    def get_element_stats(self):
+        """엘리먼트별 테스트 통계"""
+        element_stats = {}
+        for result in self.all_test_results:
+            if result['element']:
+                if result['element'] not in element_stats:
+                    element_stats[result['element']] = {
+                        'total_tests': 0,
+                        'vulnerability_candidates': 0,
+                        'crashes': 0
+                    }
+                element_stats[result['element']]['total_tests'] += 1
+                if result['is_vulnerability_candidate']:
+                    element_stats[result['element']]['vulnerability_candidates'] += 1
+                if result['is_crash']:
+                    element_stats[result['element']]['crashes'] += 1
+        return element_stats
+    
+    def get_response_time_stats(self):
+        """응답 시간 통계"""
+        response_times = [r['response_time'] for r in self.all_test_results if r['response_time'] is not None]
+        if not response_times:
+            return {'count': 0, 'average': 0, 'min': 0, 'max': 0}
+        
+        return {
+            'count': len(response_times),
+            'average': sum(response_times) / len(response_times),
+            'min': min(response_times),
+            'max': max(response_times)
+        }
+
+
+    def print_detailed_report(self, report):
+        """
+        상세한 보고서를 콘솔에 출력
+        """
+        print(f"\n{'='*80}")
+        print(f"EVC FUZZER COMPREHENSIVE REPORT - {self.target_state}")
+        print(f"{'='*80}")
         print(f"State: {report['state_name']}")
         print(f"Description: {report['description']}")
+        print(f"\n{'='*50}")
+        print(f"EVALUATION METRICS")
+        print(f"{'='*50}")
+        
+        metrics = report['metrics']
+        print(f"Total Messages Sent (MT): {metrics['total_messages_sent']}")
+        print(f"Correct Responses (MC): {metrics['correct_responses']} ({metrics['correct_response_rate']:.1f}%)")
+        print(f"Incorrect Responses (MIC): {metrics['incorrect_responses']} ({metrics['incorrect_response_rate']:.1f}%)")
+        print(f"Valid Request Errors (MCE): {metrics['valid_request_errors']} ({metrics['valid_request_error_rate']:.1f}%)")
+        print(f"Non-Error Fuzzes (MR): {metrics['non_error_fuzzes']} ({metrics['non_error_fuzz_rate']:.1f}%)")
+        print(f"System Crashes (MCC): {metrics['crashes']} ({metrics['crash_rate']:.1f}%)")
+        
+        
+        print(f"\n{'='*50}")
+        print(f"LEGACY METRICS")
+        print(f"{'='*50}")
         print(f"Total Attempts: {report['total_attempts']}")
         print(f"Total Crashes: {report['total_crashes']}")
-        print(f"Crash Details saved in {report_file}")
-        print(f"{'=' * 50}\n")
+        print(f"Crash Details: {len(report['crash_details'])} entries")
+        
+        print(f"\n{'='*80}")
+        print(f"SUMMARY ASSESSMENT")
+        print(f"{'='*80}")
+        
+        if metrics['crash_rate'] > 0:
+            print(f"⚠️  CRITICAL: System crashes detected ({metrics['crash_rate']:.1f}%)")
+        if metrics['valid_request_error_rate'] > 2.0:
+            print(f"⚠️  WARNING: High valid request error rate ({metrics['valid_request_error_rate']:.1f}%)")
+        if metrics['non_error_fuzz_rate'] > 5.0:
+            print(f"⚠️  WARNING: High non-error fuzz rate ({metrics['non_error_fuzz_rate']:.1f}%)")
+        total_potential_vulnerabilities = metrics['valid_request_errors'] + metrics['non_error_fuzzes']
+        vulnerability_rate = (total_potential_vulnerabilities / max(metrics['total_messages_sent'], 1)) * 100
+        
+        if vulnerability_rate > 10.0:
+            print(f"⚠️  HIGH RISK: Vulnerability rate above 10% ({vulnerability_rate:.1f}%)")
+        elif vulnerability_rate > 5.0:
+            print(f"⚠️  MEDIUM RISK: Vulnerability rate above 5% ({vulnerability_rate:.1f}%)")
+        else:
+            print(f"✅ LOW RISK: Vulnerability rate below 5% ({vulnerability_rate:.1f}%)")
+            
+        print(f"{'='*80}\n")
 
     # Mutation functions
     def value_flip(self, value):
@@ -949,6 +1148,197 @@ class _TCPHandler:
                 
         print(f"Saved fuzzing state to {self.state_file}")
 
+    def analyze_response(self, pkt):
+        """
+        응답 패킷을 분석하여 ResponseCode를 추출하고 지표를 업데이트
+        """
+        try:
+            tcp_layer = pkt[TCP]
+            if not hasattr(tcp_layer, 'payload') or len(bytes(tcp_layer.payload)) == 0:
+                return
+            
+            # V2GTP 페이로드 추출
+            payload_bytes = bytes(tcp_layer.payload)
+            
+            # V2GTP 헤더 스킵 (일반적으로 8바이트)
+            if len(payload_bytes) < 8:
+                return
+            
+            exi_payload = payload_bytes[8:]  # V2GTP 헤더 이후의 EXI 데이터
+            
+            # EXI 디코딩 시도
+            try:
+                decoded_xml = self.exi.decode(exi_payload.hex())
+                if decoded_xml:
+                    response_code = self.extract_response_code(decoded_xml)
+                    is_crash = False
+                else:
+                    # 디코딩 실패는 잠재적 크래시로 간주
+                    response_code = "UNKNOWN"
+                    is_crash = True
+                    
+                response_time = time.time() - self.current_test_start_time if hasattr(self, 'current_test_start_time') else None
+                self.update_metrics(
+                    self.current_message_is_normal, 
+                    response_code, 
+                    is_crash, 
+                    fuzzed_xml=getattr(self, 'current_fuzzed_xml', None),
+                    mutated_value=getattr(self, 'current_mutated_value', None),
+                    mutation_function=getattr(self, 'current_mutation_function', None),
+                    response_time=response_time
+                )
+                
+            except Exception as e:
+                print(f"EXI decoding error: {e}")
+                # 디코딩 에러도 잠재적 문제로 간주
+                response_time = time.time() - self.current_test_start_time if hasattr(self, 'current_test_start_time') else None
+                self.update_metrics(
+                    self.current_message_is_normal, 
+                    "DECODE_ERROR", 
+                    True,
+                    fuzzed_xml=getattr(self, 'current_fuzzed_xml', None),
+                    mutated_value=getattr(self, 'current_mutated_value', None),
+                    mutation_function=getattr(self, 'current_mutation_function', None),
+                    response_time=response_time
+                )
+                
+        except Exception as e:
+            print(f"Response analysis error: {e}")
+
+    def extract_response_code(self, xml_string):
+        """
+        XML 문자열에서 ResponseCode 추출
+        """
+        try:
+            root = ET.fromstring(xml_string)
+            
+            # 다양한 ResponseCode 위치 탐색
+            response_code_elements = [
+                # 일반적인 ResponseCode 위치들
+                root.find(".//ResponseCode"),
+                root.find(".//responseCode"),
+                root.find(".//Response"),
+                root.find(".//Result"),
+                root.find(".//Status")
+            ]
+            
+            for elem in response_code_elements:
+                if elem is not None and elem.text:
+                    return elem.text.strip()
+            
+            # 에러 관련 요소 탐색
+            error_elements = [
+                root.find(".//Error"),
+                root.find(".//Fault"),
+                root.find(".//Exception")
+            ]
+            
+            for elem in error_elements:
+                if elem is not None:
+                    return "FAILED"
+            
+            # ResponseCode를 찾지 못한 경우, 메시지 타입으로 추정
+            if "fault" in xml_string.lower() or "error" in xml_string.lower():
+                return "FAILED"
+            elif any(success_indicator in xml_string.lower() for success_indicator in ["ok", "success", "res", "response"]):
+                return "OK"
+            else:
+                return "UNKNOWN"
+                
+        except Exception as e:
+            print(f"ResponseCode extraction error: {e}")
+            return "PARSE_ERROR"
+
+    def update_metrics(self, is_normal_message, response_code, is_crash, fuzzed_xml=None, mutated_value=None, mutation_function=None, response_time=None):
+        """
+        평가 지표 업데이트 + 포괄적 데이터 저장
+        """
+        self.total_messages_sent += 1
+        current_time = time.time()
+        
+        # 현재 테스트 결과 저장
+        test_result = {
+            'timestamp': current_time,
+            'state': self.target_state,
+            'element': self.current_element,
+            'iteration': self.current_iteration,
+            'is_normal_message': is_normal_message,
+            'mutated_value': mutated_value,
+            'mutation_function': mutation_function,
+            'fuzzed_xml': fuzzed_xml,
+            'response_code': response_code,
+            'response_time': response_time,
+            'is_crash': is_crash,
+            'is_vulnerability_candidate': False
+        }
+        
+        if is_crash:
+            self.crashes += 1
+            test_result['is_crash'] = True
+            test_result['is_vulnerability_candidate'] = True
+            self.vulnerability_candidates.append(test_result.copy())
+            print(f"CRASH detected! Total crashes: {self.crashes}")
+            self.all_test_results.append(test_result)
+            return
+        
+        is_ok_response = (response_code in ["OK", "SUCCESS"])
+        
+        # 정확한 응답 vs 부정확한 응답 판정
+        # 정상 메시지 -> OK 응답 또는 비정상 메시지 -> 에러 응답이면 정확한 응답
+        if (is_normal_message and is_ok_response) or (not is_normal_message and not is_ok_response):
+            self.correct_responses += 1
+            if is_normal_message:
+                # 정상 케이스 저장
+                self.normal_test_results.append(test_result.copy())
+        else:
+            self.incorrect_responses += 1
+            test_result['is_vulnerability_candidate'] = True
+            
+            # 세부 분류
+            if is_normal_message and not is_ok_response:
+                # 정상 요청이 에러를 유발한 경우 (잠재적 취약점)
+                self.valid_request_errors += 1
+                test_result['vulnerability_type'] = 'valid_request_error'
+                print(f"VULNERABILITY CANDIDATE: Normal request caused error. Response: {response_code}")
+            elif not is_normal_message and is_ok_response:
+                # 비정상 요청이 에러를 유발하지 않은 경우 (잠재적 취약점)
+                self.non_error_fuzzes += 1
+                test_result['vulnerability_type'] = 'non_error_fuzz'
+                print(f"VULNERABILITY CANDIDATE: Abnormal request did not cause error. Response: {response_code}")
+            
+            self.vulnerability_candidates.append(test_result.copy())
+        
+        # 모든 테스트 결과 저장
+        self.all_test_results.append(test_result)
+        
+        # 메트릭 출력 (일정 주기마다, verbose 모드일 때만)
+        if self.verbose and self.total_messages_sent % 10 == 0:
+            self.print_metrics_summary()
+
+    def print_metrics_summary(self):
+        """
+        현재 평가 지표 요약 출력
+        """
+        if self.total_messages_sent == 0:
+            return
+            
+        correct_rate = (self.correct_responses / self.total_messages_sent) * 100
+        incorrect_rate = (self.incorrect_responses / self.total_messages_sent) * 100
+        valid_error_rate = (self.valid_request_errors / self.total_messages_sent) * 100
+        non_error_fuzz_rate = (self.non_error_fuzzes / self.total_messages_sent) * 100
+        crash_rate = (self.crashes / self.total_messages_sent) * 100
+        
+        print(f"\n{'='*50}")
+        print(f"METRICS SUMMARY - {self.target_state}")
+        print(f"{'='*50}")
+        print(f"Total Messages Sent (MT): {self.total_messages_sent}")
+        print(f"Correct Response Rate: {correct_rate:.1f}% ({self.correct_responses}/{self.total_messages_sent})")
+        print(f"Incorrect Response Rate: {incorrect_rate:.1f}% ({self.incorrect_responses}/{self.total_messages_sent})")
+        print(f"Valid Request Error Rate: {valid_error_rate:.1f}% ({self.valid_request_errors}/{self.total_messages_sent})")
+        print(f"Non-Error Fuzz Rate: {non_error_fuzz_rate:.1f}% ({self.non_error_fuzzes}/{self.total_messages_sent})")
+        print(f"Crash Rate: {crash_rate:.1f}% ({self.crashes}/{self.total_messages_sent})")
+        print(f"{'='*50}\n")
+
 
 def list_states():
     """List all available fuzzing states"""
@@ -989,6 +1379,8 @@ Examples:
                        help="Protocol for EXI encoding/decoding: DIN, ISO-2, ISO-20 (default: DIN)")
     parser.add_argument('--iterations-per-element', type=int, default=1000, 
                        help='Number of fuzzing iterations per element (default: 1000)')
+    parser.add_argument('--verbose', action='store_true', 
+                       help='Enable verbose output (shows detailed XML and mutation info)')
     
     args = parser.parse_args()
 

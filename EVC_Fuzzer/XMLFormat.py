@@ -83,7 +83,7 @@ class PacketHandler:
     def SessionSetupResponse(self):
         self._V2GDINHeader()
         self.SessionSetupRes = ET.SubElement(self.Body, "ns5:SessionSetupRes")
-        self.ResponseCode = ET.SubElement(self.SessionSetupRes, "ns5:Respons                                                                                                                                                                                                                                    eCode")
+        self.ResponseCode = ET.SubElement(self.SessionSetupRes, "ns5:ResponseCode")
         self.EVSEID = ET.SubElement(self.SessionSetupRes, "ns5:EVSEID")
 
         # Default Values
@@ -143,6 +143,11 @@ class PacketHandler:
     def ContractAuthenticationRequest(self):
         self._V2GDINHeader()
         self.ContractAuthenticationReq = ET.SubElement(self.Body, "ns5:ContractAuthenticationReq")
+        self.ContractAuthenticationReq.set("Id", "contract_auth_id")
+        self.GenChallenge = ET.SubElement(self.ContractAuthenticationReq, "ns5:GenChallenge")
+        
+        # Default Values
+        self.GenChallenge.text = "test_challenge_string"
 
     def ContractAuthenticationResponse(self):
         self._V2GDINHeader()
@@ -518,6 +523,10 @@ class PacketHandler:
     def SessionStopRequest(self):
         self._V2GDINHeader()
         self.SessionStopReq = ET.SubElement(self.Body, "ns5:SessionStopReq")
+        self.ChargingSession = ET.SubElement(self.SessionStopReq, "ns5:ChargingSession")
+        
+        # Default Values
+        self.ChargingSession.text = "Terminate"
 
     def SessionStopResponse(self):
         self._V2GDINHeader()
