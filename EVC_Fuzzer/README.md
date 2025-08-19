@@ -172,36 +172,57 @@ sudo python3 unified_fuzzer.py --state state2 --protocol ISO-2 --iterations-per-
 
 퍼징 결과는 **`fuzzing_reports/` 디렉토리**에 자동으로 저장됩니다.
 
+### 📊 리포팅 시스템 개요
+
+통합 퍼저는 향상된 리포팅 시스템을 제공합니다:
+- **실시간 메트릭 수집**: 응답 시간, 성공률, 오류율 추적
+- **포괄적인 통계 분석**: 변이 함수 효과성, 요소별 취약점 분석
+- **구조화된 JSON 출력**: 자동화된 분석 및 시각화 가능
+
+**상세한 리포팅 시스템 문서는 [REPORTING_SYSTEM.md](../REPORTING_SYSTEM.md)를 참조하세요.**
+
 ### 퍼징 상태 파일
 - `fuzzing_reports/fuzzing_state_[state].json`: 재시작 기능을 위한 현재 진행 상황 저장
 - 성공적으로 완료되면 자동으로 제거됨
 
-### 크래시 보고서
-- `fuzzing_reports/fuzzing_report_[state].json`: 종합적인 크래시 분석
+### 퍼징 리포트 파일
+- `fuzzing_reports/fuzzing_report_[state].json`: 종합적인 퍼징 분석 결과
 - 포함 내용:
-  - 총 시도 횟수 및 크래시 횟수
-  - 상세한 크래시 정보
-  - 재현 데이터 (변이된 XML, 값)
-  - 사용된 변이 함수
+  - 세션 메타데이터 (시간, 대상 상태, 설명)
+  - 성능 메트릭 (응답률, 오류율, 크래시율)
+  - 상세 통계 (변이 함수별, 요소별, 응답 시간)
+  - 크래시 상세 정보 (재현 데이터 포함)
 
 ### 보고서 구조 예제
 ```json
 {
-  "target_state": "state1",
-  "state_name": "SupportedAppProtocol",
-  "description": "SupportedAppProtocolRequest 퍼징",
-  "total_attempts": 500,
-  "total_crashes": 3,
-  "crash_details": [
-    {
-      "state": "state1",
-      "element": "ProtocolNamespace",
-      "iteration": 42,
-      "mutated_value": "corrupted_value",
-      "fuzzed_xml": "<xml>...</xml>",
-      "mutation_function": "random_insertion"
+  "target_state": "state2",
+  "state_name": "SessionSetup",
+  "description": "Fuzzes the SessionSetupRequest",
+  "session_start_time": 1755592925.678,
+  "session_duration": 17.203,
+  "total_attempts": 100,
+  "total_crashes": 0,
+  "metrics": {
+    "correct_response_rate": 1.0,
+    "incorrect_response_rate": 99.0,
+    "non_error_fuzz_rate": 99.0,
+    "crash_rate": 0.0
+  },
+  "comprehensive_data": {
+    "vulnerability_candidates_count": 99,
+    "mutation_function_stats": {
+      "random_deletion": 28,
+      "value_flip": 24,
+      "random_insertion": 25,
+      "random_value": 22
+    },
+    "response_time_stats": {
+      "average": 0.074,
+      "min": 0.040,
+      "max": 0.324
     }
-  ]
+  }
 }
 ```
 

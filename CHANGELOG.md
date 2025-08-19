@@ -35,14 +35,38 @@
 | state10 | CurrentDemand | `'V2G_Message/Body/CurrentDemandReq/DC_EVStatus/EVReady'` | `'EVReady'` |
 | state11 | SessionStop | `'V2G_Message/Body/SessionStopReq/ChargingSession'` | `'ChargingSession'` |
 
+### 📊 리포팅 시스템 개선
+
+#### vulnerability_analysis 섹션 제거
+- **이전**: 자동 심각도 분류 시스템 (high/medium/low_severity)
+- **현재**: 단순화된 `vulnerability_candidates_count`로 대체
+- **이유**: 실제 심각도는 컨텍스트에 따라 달라지므로 자동 분류가 부정확
+
+#### comprehensive_data 섹션 강화
+- **변이 함수 통계**: 각 변이 기법의 사용 빈도 추가
+- **요소별 통계**: XML 요소별 테스트 결과 세분화
+- **응답 시간 분석**: 평균/최소/최대 응답 시간 추적
+
+#### metrics 섹션 표준화
+- **응답 분류 체계**: correct/incorrect/error/crash로 명확히 구분
+- **백분율 자동 계산**: 모든 메트릭에 대한 비율 계산
+- **실시간 성능 지표**: 응답 시간 및 처리량 메트릭
+
 ### 📝 문서 업데이트
+
+#### 새로운 문서 추가
+- **REPORTING_SYSTEM.md**: 리포팅 시스템 아키텍처 및 데이터 형식 상세 문서
+- **CHANGELOG.md**: 변경 이력 및 기술적 개선사항 문서
 
 #### README 파일 수정
 - **EVC_Fuzzer/README.md**: 
   - state11 추가 ("SessionStop | SessionStopRequest 퍼징")
   - state5 설명 수정 ("ChargeParameterDiscovery" → "ContractAuthentication")
+  - 리포팅 시스템 개요 및 링크 추가
 - **EVC_Simulator/README.md**: 
   - 67번째 줄 타이포 수정 ("ㅇ" 제거)
+- **메인 README.md**:
+  - CHANGELOG 및 REPORTING_SYSTEM 문서 링크 추가
 
 ### 🧪 테스트 결과
 
