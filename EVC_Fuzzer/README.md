@@ -6,24 +6,32 @@ ISO 15118 및 DIN 70121 프로토콜을 사용하여 전기차 통신 제어기(
 
 EVC Fuzzer가 **통합 아키텍처로 업데이트**되어 모든 상태별 퍼징 기능을 단일 매개변수화된 도구로 통합했습니다. 이는 각 프로토콜 상태마다 별도 파일을 유지하던 기존 방식을 대체합니다.
 
-### 🆕 최신 업데이트 (2025.08.19)
+### 🆕 최신 업데이트 (2025.09.10)
 
-**XML 네임스페이스 처리 개선으로 모든 상태 퍼징 정상화**:
-- **수정 전**: States 2-11에서 XML 요소 탐지 실패로 퍼징 불가
-- **수정 후**: 네임스페이스 인식 검색으로 모든 상태에서 100% 요소 탐지 성공
-- **기술적 개선**: XPath 경로 → 단순 요소 이름 + 네임스페이스 처리
-- **결과**: 11개 모든 V2G 프로토콜 상태에서 안정적인 퍼징 실행
+**듀얼 퍼징 모드 및 상태 머신 관리 시스템 추가**:
+- **새로운 기능**: `--fuzzing-mode` 파라미터로 독립/준수 모드 선택
+- **Independent Mode**: 상태 독립적 퍼징 (EVSE 시뮬레이터 환경용)
+- **Compliant Mode**: V2G 상태 머신 순서 준수 퍼징 (실제 충전기 환경용)
+- **상태 머신 관리**: 상태 간 의존성 및 응답 검증 시스템 구현
+- **향상된 크래시 감지**: 타임아웃, RST 패킷, EXI 디코딩 실패 구분
+
+**프로토콜 지원 현황**:
+- **EXI 처리**: DIN, ISO-2, ISO-20 프로토콜별 EXI 인코딩/디코딩 지원
+- **XML 메시지 생성**: 현재 DIN 70121만 지원 (XML 템플릿 제한)
+- **완전한 프로토콜별 퍼징을 위해서는 추가 개발 필요**
 
 자세한 변경사항은 [CHANGELOG.md](../CHANGELOG.md)를 참조하세요.
 
 ### 주요 기능
 
-- **통합 아키텍처**: 단일 `unified_fuzzer.py`가 10개의 개별 상태별 퍼저를 대체
-- **상태 기반 퍼징**: 특정 V2G 프로토콜 상태 타겟팅 (state1-state10)
-- **설정 가능한 변이**: 다중 변이 알고리즘 (플립, 랜덤, 삭제, 삽입)
-- **크래시 감지**: 타겟 크래시 자동 감지 및 로깅
+- **통합 아키텍처**: 단일 `unified_fuzzer.py`가 11개의 개별 상태별 퍼저를 대체
+- **상태 기반 퍼징**: 특정 V2G 프로토콜 상태 타겟팅 (state1-state11)
+- **듀얼 퍼징 모드**: 독립적/준수 모드로 다양한 환경 지원
+- **상태 머신 관리**: V2G 프로토콜 순서 및 의존성 검증
+- **설정 가능한 변이**: 4가지 변이 알고리즘 (플립, 랜덤값, 삭제, 삽입)
+- **고급 크래시 감지**: 타임아웃, RST, EXI 디코딩 실패 구분
 - **재시작 기능**: 중단된 퍼징 세션을 위한 상태 유지
-- **포괄적인 보고**: 재현 데이터와 함께 상세한 크래시 보고서
+- **포괄적인 보고**: 재현 데이터와 통계 분석을 포함한 상세 보고서
 
 ## 빠른 시작
 
@@ -76,8 +84,11 @@ cd ../EVC_Fuzzer
 # 사용 가능한 상태 목록 확인
 python3 unified_fuzzer.py --list-states
 
-# 퍼징 실행 (예: state1 퍼징)
+# 기본 퍼징 실행 (독립 모드)
 sudo python3 unified_fuzzer.py --state state1 --interface veth-pev --iterations-per-element 50
+
+# 상태 머신 준수 모드 (실제 충전기 환경용)
+sudo python3 unified_fuzzer.py --state state5 --fuzzing-mode compliant --interface veth-pev --iterations-per-element 50
 ```
 *참고: 퍼저도 시작될 때 자동으로 자체 EXI 디코더 서버를 실행합니다*
 
@@ -123,10 +134,11 @@ sudo python3 unified_fuzzer.py --state state1 --interface veth-pev --iterations-
 ## 명령행 옵션
 
 ```
-사용법: unified_fuzzer.py [-h] [--state {state1,...,state10}] [--list-states]
+사용법: unified_fuzzer.py [-h] [--state {state1,...,state11}] [--list-states]
                          [-M MODE] [-I INTERFACE] [--source-mac SOURCE_MAC]
                          [--source-ip SOURCE_IP] [--source-port SOURCE_PORT]
                          [-p PROTOCOL] [--iterations-per-element ITERATIONS]
+                         [--verbose] [--fuzzing-mode {independent,compliant}]
 
 EVC 테스팅을 위한 통합 V2G 프로토콜 퍼저
 
@@ -141,6 +153,8 @@ EVC 테스팅을 위한 통합 V2G 프로토콜 퍼저
   --source-port         소스 포트 (기본값: 랜덤)
   -p, --protocol        프로토콜 (DIN, ISO-2, ISO-20, 기본값: DIN)
   --iterations-per-element  요소별 퍼징 반복 횟수 (기본값: 1000)
+  --verbose             상세 출력 (XML 및 변이 정보 표시)
+  --fuzzing-mode        퍼징 모드: independent (독립) 또는 compliant (준수) (기본값: independent)
 ```
 
 ## 사용 예제
@@ -162,11 +176,24 @@ sudo python3 unified_fuzzer.py \
   --iterations-per-element 100
 ```
 
-### 프로토콜별 퍼징
+### 퍼징 모드별 사용
 ```bash
-# 기본 DIN 대신 ISO-2 프로토콜 사용
+# 독립 모드 (기본값) - 시뮬레이터 환경용
+sudo python3 unified_fuzzer.py --state state5 --fuzzing-mode independent --iterations-per-element 50
+
+# 준수 모드 - 실제 충전기 환경용 (상태 순서 준수)
+sudo python3 unified_fuzzer.py --state state5 --fuzzing-mode compliant --iterations-per-element 50
+
+# 상세 로깅 포함
+sudo python3 unified_fuzzer.py --state state3 --verbose --iterations-per-element 25
+```
+
+### 프로토콜별 퍼징 (제한사항 있음)
+```bash
+# 프로토콜 파라미터 - EXI 처리에만 영향, XML 템플릿은 여전히 DIN
 sudo python3 unified_fuzzer.py --state state2 --protocol ISO-2 --iterations-per-element 75
 ```
+**참고**: 현재 XML 메시지 생성은 DIN 70121만 지원합니다. 완전한 프로토콜별 퍼징을 위해서는 XMLFormat.py의 프로토콜별 구현이 필요합니다.
 
 ## 출력 및 보고
 
@@ -255,10 +282,19 @@ sudo python3 unified_fuzzer.py --state state10 --iterations-per-element 200
 - 상태별 설명
 
 ### 변이 알고리즘
-1. **값 뒤집기**: 대상 문자열 내 문자들을 교환
-2. **랜덤 값**: 랜덤 문자를 새로운 문자로 교체
-3. **랜덤 삭제**: 랜덤 문자를 제거
-4. **랜덤 삽입**: 랜덤 위치에 랜덤 문자를 삽입
+1. **값 뒤집기 (value_flip)**: 대상 문자열 내 두 문자의 위치를 교환
+2. **랜덤 값 (random_value)**: 임의 위치의 문자를 랜덤 문자로 교체
+3. **랜덤 삭제 (random_deletion)**: 임의 위치의 문자를 제거
+4. **랜덤 삽입 (random_insertion)**: 임의 위치에 랜덤 문자를 삽입
+
+### 크래시 감지 기준
+- **네트워크 크래시**: 2초 타임아웃, TCP RST 패킷 수신
+- **프로토콜 크래시**: EXI 디코딩 실패, 예외 발생
+- **비정상 응답**: 예상되지 않은 응답 코드 (취약점 후보)
+
+### 듀얼 퍼징 모드
+- **Independent Mode**: 상태 순서 무시, 직접 접근 (시뮬레이터용)
+- **Compliant Mode**: V2G 상태 머신 순서 준수 (실제 충전기용)
 
 ### 네트워크 스택
 - **Layer 1**: J1772 제어/근접 파일럿 신호

@@ -37,7 +37,7 @@ STATE_CONFIG = {
         'name': 'SessionSetup', 
         'description': 'Fuzzes the SessionSetupRequest',
         'elements_to_modify': ['EVCCID'],
-        'wait_for_message': 'sessionSetupRes',
+        'wait_for_message': 'supportedAppProtocolRes',
         'xml_method': 'SessionSetupRequest'
     },
     'state3': {
@@ -117,6 +117,7 @@ class PEV:
         self.iterations_per_element = args.iterations_per_element
         self.target_state = args.state
         self.verbose = getattr(args, 'verbose', False)
+        self.fuzzing_mode = getattr(args, 'fuzzing_mode', 'independent')
 
         self.destinationMAC = None
         self.destinationIP = None
@@ -566,13 +567,33 @@ class _TCPHandler:
     def wait_and_start_fuzzing(self):
         self.handshake_complete.wait()
         
-        # Check if we need to wait for a specific message before fuzzing
-        wait_for_message = self.state_config.get('wait_for_message')
-        if wait_for_message:
-            print(f"INFO (PEV): Waiting for {wait_for_message} message before starting fuzzing")
-            # TODO: Implement message waiting logic based on state requirements
-            # For now, we'll proceed directly to fuzzing
+        # 🎯 퍼징 모드에 따른 다른 전략 적용
+        if hasattr(self, 'fuzzing_mode') and self.fuzzing_mode == 'compliant':
+            print(f"🛡️  STATE-MACHINE COMPLIANT MODE: Full protocol compliance required")
+            self._compliant_fuzzing()
+        else:
+            print(f"⚡ INDEPENDENT MODE: Direct state access (suitable for EVSE simulator)")  
+            self._independent_fuzzing()
+            
+    def _independent_fuzzing(self):
+        """상태 독립적 퍼징 - EVSE 시뮬레이터용"""
+        print(f"📤 Starting direct fuzzing for {self.target_state}")
+        print(f"   No state progression required - sending messages directly")
+        self.send_fuzzing_messages()
         
+    def _compliant_fuzzing(self):
+        """상태 머신 준수 퍼징 - 실제 충전기용"""
+        from state_machine_manager import V2GStateMachine
+        self.state_machine = V2GStateMachine(self)
+        
+        print(f"🚀 Starting compliant state progression to reach {self.target_state}")
+        
+        # 타겟 상태에 도달하기 위한 순차 실행
+        if not self.state_machine.reach_target_state(self.target_state):
+            print(f"❌ Failed to reach target state {self.target_state}")
+            return
+            
+        print(f"✅ Successfully reached {self.target_state}, starting fuzzing...")
         self.send_fuzzing_messages()
 
     def send_fuzzing_messages(self):
@@ -1172,6 +1193,10 @@ class _TCPHandler:
                 if decoded_xml:
                     response_code = self.extract_response_code(decoded_xml)
                     is_crash = False
+                    
+                    # 🎯 상태 머신에 응답 전달 (상태 진행 중인 경우)
+                    if hasattr(self, 'state_machine') and self.state_machine:
+                        self.state_machine.handle_response(decoded_xml)
                 else:
                     # 디코딩 실패는 잠재적 크래시로 간주
                     response_code = "UNKNOWN"
@@ -1381,6 +1406,8 @@ Examples:
                        help='Number of fuzzing iterations per element (default: 1000)')
     parser.add_argument('--verbose', action='store_true', 
                        help='Enable verbose output (shows detailed XML and mutation info)')
+    parser.add_argument('--fuzzing-mode', choices=['independent', 'compliant'], default='independent',
+                       help='Fuzzing mode: independent (direct state access) or compliant (state machine progression) (default: independent)')
     
     args = parser.parse_args()
 
